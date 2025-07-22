@@ -2,26 +2,34 @@ import express from "express";
 import { UserModel } from "../models/User";
 import { generateToken } from "../utils/token";
 import { authMiddleware } from "../middlewares/auth";
-// import { authMiddleware } from "../middlewares/auth";
+import bcrypt from "bcryptjs";
 
 const router = express.Router();
 
 router.post("/signup", async (req, res) => {
   const { first_name, last_name, email, password, age } = req.body;
   const exists = await UserModel.findOne({ email });
-  if (exists) return res.status(400).json({ message: "Email already exists" });
+  if (exists) {
+    console.log("❌ Tried to register with existing email:", email);
+    return res.status(400).json({ message: "Email already exists" });
+  }
 
-  const user = new UserModel({ first_name, last_name, email, password, age });
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const user = new UserModel({ first_name, last_name, email, password: hashedPassword, age });
   await user.save();
 
   const token = generateToken(user.toObject());
   res.status(201).json({ message: "User created", token });
 });
 
+
 router.post("/signin", async (req, res) => {
   const { email, password } = req.body;
-  const user = await UserModel.findOne({ email, password });
-  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+  const user = await UserModel.findOne({ email });
+  if (!user) return res.status(401).json({ message: "Invalid email or password" });
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
 
   const token = generateToken(user.toObject());
   res.json({ message: "Login successful", token });

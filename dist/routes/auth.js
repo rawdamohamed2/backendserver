@@ -16,23 +16,29 @@ const express_1 = __importDefault(require("express"));
 const User_1 = require("../models/User");
 const token_1 = require("../utils/token");
 const auth_1 = require("../middlewares/auth");
-// import { authMiddleware } from "../middlewares/auth";
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const router = express_1.default.Router();
 router.post("/signup", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { first_name, last_name, email, password, age } = req.body;
     const exists = yield User_1.UserModel.findOne({ email });
-    if (exists)
+    if (exists) {
+        console.log("❌ Tried to register with existing email:", email);
         return res.status(400).json({ message: "Email already exists" });
-    const user = new User_1.UserModel({ first_name, last_name, email, password, age });
+    }
+    const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
+    const user = new User_1.UserModel({ first_name, last_name, email, password: hashedPassword, age });
     yield user.save();
     const token = (0, token_1.generateToken)(user.toObject());
     res.status(201).json({ message: "User created", token });
 }));
 router.post("/signin", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = req.body;
-    const user = yield User_1.UserModel.findOne({ email, password });
+    const user = yield User_1.UserModel.findOne({ email });
     if (!user)
-        return res.status(401).json({ message: "Invalid credentials" });
+        return res.status(401).json({ message: "Invalid email or password" });
+    const isMatch = yield bcryptjs_1.default.compare(password, user.password);
+    if (!isMatch)
+        return res.status(401).json({ message: "Invalid email or password" });
     const token = (0, token_1.generateToken)(user.toObject());
     res.json({ message: "Login successful", token });
 }));
